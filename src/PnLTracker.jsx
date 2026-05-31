@@ -1105,6 +1105,28 @@ function DonutChart({ data }) {
   );
 }
 
+// explains why a tab may look empty after importing a monthly statement
+function HoldingNote({ kind }) {
+  return (
+    <div
+      style={{
+        fontSize: 12,
+        color: C.muted,
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        borderRadius: 8,
+        padding: '9px 12px',
+        marginBottom: 16,
+        lineHeight: 1.7,
+      }}
+    >
+      ℹ️ แท็บนี้แสดงเฉพาะ{kind}ที่ <b style={{ color: C.text }}>ยังถืออยู่</b> (จาก Webull PORTFOLIO SUMMARY) ·
+      รายการที่ <b style={{ color: C.text }}>ขาย/ปิดไปแล้ว</b> ดูกำไร/ขาดทุนจริงที่แท็บ{' '}
+      <b style={{ color: C.green }}>💰 Realized</b>
+    </div>
+  );
+}
+
 /* ============================================================================
    STOCK TAB
    ========================================================================== */
@@ -1171,6 +1193,7 @@ function StockTab({ rows, setRows, onFile, onPasteClick }) {
   return (
     <div>
       <UploadZone onFile={onFile} onPasteClick={onPasteClick} />
+      <HoldingNote kind="หุ้น" />
       <div style={{ overflowX: 'auto', border: `1px solid ${C.border}`, borderRadius: 12 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
           <thead>
@@ -1331,6 +1354,7 @@ function OptionTab({ rows, setRows, onFile, onPasteClick }) {
   return (
     <div>
       <UploadZone onFile={onFile} onPasteClick={onPasteClick} />
+      <HoldingNote kind="ออปชั่น" />
       <div style={{ overflowX: 'auto', border: `1px solid ${C.border}`, borderRadius: 12 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1040 }}>
           <thead>
