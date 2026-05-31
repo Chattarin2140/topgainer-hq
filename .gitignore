@@ -27,3 +27,10 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Personal trade data (Webull statements) — never commit
+*.csv
+
+# Local tooling / editor settings
+.claude/
+.project-meta.json
