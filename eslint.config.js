@@ -30,6 +30,8 @@ export default [
       ...reactHooks.configs.recommended.rules,
       'react/jsx-no-target-blank': 'off',
       'react/react-in-jsx-scope': 'off',
+      // App is a single-file JS component without PropTypes; runtime typing isn't used.
+      'react/prop-types': 'off',
     },
     settings: {
       react: { version: '18.2' },

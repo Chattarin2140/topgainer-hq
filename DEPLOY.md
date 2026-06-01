@@ -62,4 +62,3 @@ Supabase → Authentication → URL Configuration → ใส่โดเมน V
 - `base` ใน `vite.config.ts` ตั้งเป็น `/` แล้ว (สำหรับ Vercel) — ถ้าจะกลับไปใช้ GitHub Pages ให้เปลี่ยนเป็น `/topgainer-hq/`
 - `.env.local` ถูก gitignore ไว้แล้ว — คีย์จะไม่ขึ้น repo
 - ไม่ใส่คีย์ = แอปยังใช้ได้ (localStorage) แต่ไม่มี login/sync ข้ามเครื่อง
-- โฟลเดอร์ `backend/` (Express + MongoDB เดิม) ไม่ได้ใช้ในเส้นทางนี้แล้ว — เก็บไว้เป็น reference ได้

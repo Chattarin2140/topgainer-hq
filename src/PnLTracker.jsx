@@ -131,7 +131,7 @@ const parseCSVLine = (line) => {
 };
 
 const parseCSV = (text) => {
-  const clean = text.replace(/^﻿/, ''); // strip BOM
+  const clean = text.replace(/^\uFEFF/, ''); // strip BOM
   const lines = clean
     .split(/\r\n|\n|\r/)
     .map((l) => l)
@@ -260,7 +260,7 @@ const smartDate = (raw, preferDMY) => {
   const s = (raw || '').trim();
   if (!s) return '';
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // already ISO
-  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  const m = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
   if (!m) return s;
   let a = parseInt(m[1], 10);
   let b = parseInt(m[2], 10);
@@ -303,7 +303,7 @@ const isMonthlyStatement = (text) =>
   /monthly statement|portfolio summary|trade records/i.test(text);
 
 const parseMonthlyStatement = (text) => {
-  const clean = text.replace(/^﻿/, '');
+  const clean = text.replace(/^\uFEFF/, '');
   const lines = clean.split(/\r\n|\n|\r/).map(parseCSVLine);
 
   const stocks = [];
@@ -448,7 +448,7 @@ const fifoRealized = (trades, multiplier) => {
    Parse the TRADE RECORDS sections (Stocks + Options) into realized P&L rows.
    -------------------------------------------------------------------------- */
 const parseTradeRecords = (text) => {
-  const lines = text.replace(/^﻿/, '').split(/\r\n|\n|\r/).map(parseCSVLine);
+  const lines = text.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/).map(parseCSVLine);
   const has = (h, s) => h.map((c) => c.toLowerCase()).some((c) => c.includes(s));
   const isTradeStockH = (h) => has(h, 'traded price') && has(h, 'net amount') && !has(h, 'strike');
   const isTradeOptionH = (h) => has(h, 'traded price') && has(h, 'strike') && has(h, 'expiry');
