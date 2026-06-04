@@ -11,6 +11,7 @@ import {
 } from './lib/supabase';
 
 const LS_KEY = 'pnl-tracker-v1';
+const SNAPSHOT_VERSION = 1;
 
 /* ============================================================================
    DESIGN TOKENS
@@ -70,7 +71,7 @@ const formatUSD = (n) => {
   return usdFmt.format(n);
 };
 
-const newId = () => Date.now() + Math.random();
+const newId = () => crypto.randomUUID();
 
 // Robust numeric parse: strips currency symbols, commas, %, whitespace,
 // and converts parenthesised negatives e.g. "(1,234.50)" -> -1234.5
@@ -261,7 +262,7 @@ const smartDate = (raw, preferDMY) => {
   if (!s) return '';
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // already ISO
   const m = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
-  if (!m) return s;
+  if (!m) return '';
   let a = parseInt(m[1], 10);
   let b = parseInt(m[2], 10);
   const y = m[3];
@@ -595,6 +596,15 @@ const mergeDaily = (prev, incoming) => {
 const fmtQty = (n) => {
   if (n === null || n === undefined || isNaN(n)) return '—';
   return String(Number(Number(n).toFixed(4)));
+};
+
+/* deduplication keys — used to skip exact duplicate rows on import */
+const stockKey = (r) => `${r.symbol}|${r.quantity}|${r.buyPrice}`;
+const optionKey = (r) => `${r.symbol}|${r.strategy}|${r.strike}|${r.expiry}|${r.contracts}|${r.premiumPaid}`;
+
+const dedupeAppend = (existing, incoming, keyFn) => {
+  const seen = new Set(existing.map(keyFn));
+  return incoming.filter((r) => !seen.has(keyFn(r)));
 };
 
 /* ============================================================================
@@ -1296,8 +1306,8 @@ const emptyOptionRow = () => ({
 const isShort = (strategy) =>
   strategy === 'Short Call' ||
   strategy === 'Short Put' ||
-  strategy === 'Iron Condor' ||
-  strategy === 'Bear Put Spread';
+  strategy === 'Iron Condor';
+// Bear Put Spread is a long debit spread (buy higher put, sell lower put) — not short
 
 function calcOption(row) {
   const contracts = parseNum(row.contracts) || 0;
@@ -2063,7 +2073,7 @@ export default function PnLTracker() {
   // persist on change (debounced for cloud)
   useEffect(() => {
     if (!loaded) return;
-    const snapshot = { stockRows, optionRows, realizedRows, dailyRows };
+    const snapshot = { _v: SNAPSHOT_VERSION, stockRows, optionRows, realizedRows, dailyRows };
     if (mode === 'local') {
       try {
         localStorage.setItem(LS_KEY, JSON.stringify(snapshot));
@@ -2123,12 +2133,27 @@ export default function PnLTracker() {
           const { instruments: realized, daily } = parseTradeRecords(text);
           const total = stocks.length + options.length + realized.length;
           if (!total) throw new Error('No positions in statement');
-          if (stocks.length) setStockRows((prev) => [...prev, ...stocks]);
-          if (options.length) setOptionRows((prev) => [...prev, ...options]);
+          let added = 0;
+          let skipped = 0;
+          if (stocks.length)
+            setStockRows((prev) => {
+              const fresh = dedupeAppend(prev, stocks, stockKey);
+              added += fresh.length;
+              skipped += stocks.length - fresh.length;
+              return fresh.length ? [...prev, ...fresh] : prev;
+            });
+          if (options.length)
+            setOptionRows((prev) => {
+              const fresh = dedupeAppend(prev, options, optionKey);
+              added += fresh.length;
+              skipped += options.length - fresh.length;
+              return fresh.length ? [...prev, ...fresh] : prev;
+            });
           if (realized.length) setRealizedRows((prev) => [...prev, ...realized]);
           if (daily.length) setDailyRows((prev) => mergeDaily(prev, daily));
           setTab(realized.length ? 'realized' : stocks.length >= options.length ? 'stock' : 'option');
-          pushToast('success', `✓ Imported ${total} positions from Webull`);
+          const skipNote = skipped > 0 ? ` (${skipped} ซ้ำ ข้าม)` : '';
+          pushToast('success', `✓ Imported ${added + realized.length} positions from Webull${skipNote}`);
           return true;
         }
 
@@ -2138,15 +2163,25 @@ export default function PnLTracker() {
         if (fmt === 'option') {
           const parsed = parseOptionCSV(headers, rows);
           if (!parsed.length) throw new Error('No option rows');
-          setOptionRows((prev) => [...prev, ...parsed]);
+          setOptionRows((prev) => {
+            const fresh = dedupeAppend(prev, parsed, optionKey);
+            const skipped = parsed.length - fresh.length;
+            const skipNote = skipped > 0 ? ` (${skipped} ซ้ำ ข้าม)` : '';
+            setTimeout(() => pushToast('success', `✓ Imported ${fresh.length} positions from Webull${skipNote}`), 0);
+            return fresh.length ? [...prev, ...fresh] : prev;
+          });
           setTab('option');
-          pushToast('success', `✓ Imported ${parsed.length} positions from Webull`);
         } else {
           const parsed = parseStockCSV(headers, rows);
           if (!parsed.length) throw new Error('No stock rows');
-          setStockRows((prev) => [...prev, ...parsed]);
+          setStockRows((prev) => {
+            const fresh = dedupeAppend(prev, parsed, stockKey);
+            const skipped = parsed.length - fresh.length;
+            const skipNote = skipped > 0 ? ` (${skipped} ซ้ำ ข้าม)` : '';
+            setTimeout(() => pushToast('success', `✓ Imported ${fresh.length} positions from Webull${skipNote}`), 0);
+            return fresh.length ? [...prev, ...fresh] : prev;
+          });
           setTab('stock');
-          pushToast('success', `✓ Imported ${parsed.length} positions from Webull`);
         }
         return true;
       } catch (err) {
