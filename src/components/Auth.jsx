@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { C, FONT, inputStyle } from '../constants';
 
-export function AuthBar({ mode, session, authReady, sync, onLogin, onLogout }) {
-  const pill = (bg, color, border, children) => (
+function Pill({ bg, color, border, children }) {
+  return (
     <span
       style={{
         display: 'inline-flex',
@@ -20,11 +20,13 @@ export function AuthBar({ mode, session, authReady, sync, onLogin, onLogout }) {
       {children}
     </span>
   );
+}
 
+export function AuthBar({ mode, session, authReady, sync, onLogin, onLogout }) {
   if (mode === 'local') {
-    return pill(C.surface, C.muted, C.border, <>💾 บันทึกในเครื่อง (localStorage)</>);
+    return <Pill bg={C.surface} color={C.muted} border={C.border}>💾 บันทึกในเครื่อง (localStorage)</Pill>;
   }
-  if (!authReady) return pill(C.surface, C.muted, C.border, <>…</>);
+  if (!authReady) return <Pill bg={C.surface} color={C.muted} border={C.border}>…</Pill>;
 
   if (!session) {
     return (
@@ -52,20 +54,17 @@ export function AuthBar({ mode, session, authReady, sync, onLogin, onLogout }) {
       ? { c: C.yellow, t: 'กำลังบันทึก…' }
       : sync === 'error'
       ? { c: C.red, t: 'บันทึกล้มเหลว' }
-      : { c: C.green, t: 'ซิงค์แล้ว' };
+      : sync === 'saved'
+      ? { c: C.green, t: 'ซิงค์แล้ว' }
+      : { c: C.muted, t: '—' };
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {pill(
-        C.surface,
-        C.text,
-        C.border,
-        <>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: syncDot.c }} />
-          {syncDot.t}
-        </>
-      )}
-      {pill(C.surface, C.muted, C.border, <>☁️ {session.user.email}</>)}
+      <Pill bg={C.surface} color={C.text} border={C.border}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: syncDot.c }} />
+        {syncDot.t}
+      </Pill>
+      <Pill bg={C.surface} color={C.muted} border={C.border}>☁️ {session.user.email}</Pill>
       <button
         onClick={onLogout}
         style={{
@@ -91,6 +90,13 @@ export function AuthModal({ open, onClose, onSubmit }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [focused, setFocused] = useState('');
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -99,6 +105,7 @@ export function AuthModal({ open, onClose, onSubmit }) {
       setError('');
       setBusy(false);
       setAuthMode('signin');
+      setFocused('');
     }
   }, [open]);
 
@@ -111,10 +118,21 @@ export function AuthModal({ open, onClose, onSubmit }) {
     }
     setBusy(true);
     setError('');
-    const res = await onSubmit(email, password, authMode);
-    setBusy(false);
-    if (res && res.error) setError(res.error);
+    try {
+      const res = await onSubmit(email, password, authMode);
+      if (mountedRef.current && res && res.error) setError(res.error);
+    } catch {
+      if (mountedRef.current) setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      if (mountedRef.current) setBusy(false);
+    }
   };
+
+  const fieldStyle = (name) => ({
+    ...inputStyle,
+    marginBottom: 10,
+    borderColor: focused === name ? C.accent : C.border,
+  });
 
   return (
     <div
@@ -151,8 +169,10 @@ export function AuthModal({ open, onClose, onSubmit }) {
           placeholder="อีเมล"
           autoComplete="email"
           onChange={(e) => setEmail(e.target.value)}
+          onFocus={() => setFocused('email')}
+          onBlur={() => setFocused('')}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
-          style={{ ...inputStyle, marginBottom: 10 }}
+          style={fieldStyle('email')}
         />
         <input
           type="password"
@@ -160,8 +180,10 @@ export function AuthModal({ open, onClose, onSubmit }) {
           placeholder="รหัสผ่าน (อย่างน้อย 6 ตัว)"
           autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
           onChange={(e) => setPassword(e.target.value)}
+          onFocus={() => setFocused('password')}
+          onBlur={() => setFocused('')}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
-          style={{ ...inputStyle, marginBottom: 10 }}
+          style={fieldStyle('password')}
         />
         {error && (
           <div style={{ color: C.red, fontSize: 12, marginBottom: 10 }}>{error}</div>
